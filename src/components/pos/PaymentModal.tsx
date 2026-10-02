@@ -111,7 +111,7 @@ export function PaymentModal({ open, onClose, onPaid }: Props) {
         const res = await fetch("/api/mint/quote", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ amountSats: totalsRef.current.grossSats }),
+          body: JSON.stringify({ amountSats: totalsRef.current.totalSats }),
         });
         if (!res.ok) throw new Error(`quote failed: ${res.status}`);
         const data: QuoteResponse = await res.json();
@@ -181,7 +181,7 @@ export function PaymentModal({ open, onClose, onPaid }: Props) {
           event: "payment.received",
           payloadVersion: 2,
           paymentId: quote.quote, // pretend the quote id IS the payment id
-          amountSats: currentTotals.grossSats,
+          amountSats: currentTotals.totalSats,
           basketId: `pos_${Date.now()}`,
           lineItems: currentLines.map(({ item, quantity }) => ({
             itemId: item.id,
@@ -261,7 +261,7 @@ export function PaymentModal({ open, onClose, onPaid }: Props) {
             {formatEur(totals.grossCents)}
           </div>
           <div className="text-sm text-muted-foreground tabular-nums">
-            {formatSats(totals.grossSats)}
+            {formatSats(totals.totalSats)}
           </div>
         </div>
 

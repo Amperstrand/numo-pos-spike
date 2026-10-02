@@ -12,6 +12,15 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/// Single-row venue metadata, written by the seed script (any jamezz table).
+model VenueMeta {
+  id       Int    @id @default(1)
+  name     String
+  tableQr  String
+  vatRate  Int
+  currency String @default("EUR")
+}
+
 /// A menu item exposed by the legacy restaurant API.
 /// `priceCents` is the fiat price (EUR cents). `priceSats` is the
 /// sats-equivalent (static for the demo — would normally come from

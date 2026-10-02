@@ -13,10 +13,13 @@ import { RESTAURANT, VAT_RATE_PERCENT } from "@/lib/restaurant-config";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const items = await db.menuItem.findMany({
-    where: { available: true },
-    orderBy: [{ category: "asc" }, { name: "asc" }],
-  });
+  const [items, venue] = await Promise.all([
+    db.menuItem.findMany({
+      where: { available: true },
+      orderBy: [{ category: "asc" }, { name: "asc" }],
+    }),
+    db.venueMeta.findUnique({ where: { id: 1 } }),
+  ]);
 
   // Group by category for nicer POS UI.
   const byCategory = items.reduce<
@@ -29,9 +32,10 @@ export async function GET() {
 
   return NextResponse.json({
     restaurant: {
-      name: RESTAURANT.name,
-      currency: "EUR",
-      vatRate: VAT_RATE_PERCENT,
+      name: venue?.name ?? RESTAURANT.name,
+      currency: venue?.currency ?? "EUR",
+      vatRate: venue?.vatRate ?? VAT_RATE_PERCENT,
+      tableQr: venue?.tableQr ?? "",
       bitcoinPriceEur: 76_000,
     },
     categories: Object.keys(byCategory),

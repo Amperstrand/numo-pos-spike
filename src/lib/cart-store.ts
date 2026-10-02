@@ -14,6 +14,9 @@ import { VAT_RATE_PERCENT } from "@/lib/restaurant-config";
 
 interface CartState {
   lines: Array<{ item: MenuItemDTO; quantity: number }>;
+  /** VAT percent of the seeded venue, hydrated from /api/restaurant/menu */
+  vatRate: number;
+  setVatRate: (rate: number) => void;
   addItem: (item: MenuItemDTO) => void;
   removeItem: (id: string) => void;
   decrementItem: (id: string) => void;
@@ -25,6 +28,8 @@ export const useCart = create<CartState>()(
   persist(
     (set) => ({
       lines: [],
+      vatRate: VAT_RATE_PERCENT,
+      setVatRate: (rate) => set({ vatRate: rate }),
       addItem: (item) =>
         set((s) => {
           const existing = s.lines.find((l) => l.item.id === item.id);
@@ -70,7 +75,9 @@ export const useCart = create<CartState>()(
 );
 
 export function selectCartTotals(state: CartState) {
-  const totalCents = state.lines.reduce(
+  // priceCents is the GROSS venue price (what the venue menu shows), so the
+  // cart total equals the venue menu total and VAT is the included portion.
+  const grossCents = state.lines.reduce(
     (s, l) => s + l.item.priceCents * l.quantity,
     0
   );
@@ -78,11 +85,10 @@ export function selectCartTotals(state: CartState) {
     (s, l) => s + l.item.priceSats * l.quantity,
     0
   );
-  const vatCents = Math.round((totalCents * VAT_RATE_PERCENT) / 100);
-  const grossCents = totalCents + vatCents;
-  const grossSats = Math.round((grossCents / 6_000_000) * 100_000_000);
+  const vatCents = Math.round(grossCents - grossCents / (1 + state.vatRate / 100));
+  const netCents = grossCents - vatCents;
   const itemCount = state.lines.reduce((s, l) => s + l.quantity, 0);
-  return { totalCents, totalSats, vatCents, grossCents, grossSats, itemCount };
+  return { netCents, totalSats, vatCents, grossCents, itemCount };
 }
 
 /**

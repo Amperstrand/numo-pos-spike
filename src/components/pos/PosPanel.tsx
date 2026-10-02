@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useCart } from "@/lib/cart-store";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -29,6 +30,7 @@ export function PosPanel({ onPaid }: Props) {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json: RestaurantMenuResponse = await res.json();
         setData(json);
+        useCart.getState().setVatRate(json.restaurant.vatRate);
       } catch (e) {
         setError(e instanceof Error ? e.message : "unknown");
       } finally {

@@ -7,7 +7,6 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useCart, useCartTotals } from "@/lib/cart-store";
 import { formatEur, formatSats } from "@/lib/types";
-import { VAT_RATE_PERCENT } from "@/lib/restaurant-config";
 
 interface Props {
   onCheckout: () => void;
@@ -19,6 +18,7 @@ export function Cart({ onCheckout }: Props) {
   const decrementItem = useCart((s) => s.decrementItem);
   const removeItem = useCart((s) => s.removeItem);
   const clear = useCart((s) => s.clear);
+  const cartVat = useCart((s) => s.vatRate);
   const totals = useCartTotals();
 
   return (
@@ -105,11 +105,11 @@ export function Cart({ onCheckout }: Props) {
 
       <div className="border-t px-4 py-3 space-y-2">
         <div className="flex justify-between text-xs text-muted-foreground">
-          <span>Subtotal</span>
-          <span className="tabular-nums">{formatEur(totals.totalCents)}</span>
+          <span>Net</span>
+          <span className="tabular-nums">{formatEur(totals.netCents)}</span>
         </div>
         <div className="flex justify-between text-xs text-muted-foreground">
-          <span>VAT ({VAT_RATE_PERCENT}%)</span>
+          <span>VAT incl. ({cartVat}%)</span>
           <span className="tabular-nums">{formatEur(totals.vatCents)}</span>
         </div>
         <Separator />
@@ -120,7 +120,7 @@ export function Cart({ onCheckout }: Props) {
               {formatEur(totals.grossCents)}
             </div>
             <div className="text-xs text-muted-foreground tabular-nums">
-              {formatSats(totals.grossSats)}
+              {formatSats(totals.totalSats)}
             </div>
           </div>
         </div>
