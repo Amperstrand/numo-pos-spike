@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useCart, useCartTotals } from "@/lib/cart-store";
 import { formatEur, formatSats } from "@/lib/types";
+import { VAT_RATE_PERCENT } from "@/lib/restaurant-config";
 
 interface Props {
   onCheckout: () => void;
@@ -108,7 +109,7 @@ export function Cart({ onCheckout }: Props) {
           <span className="tabular-nums">{formatEur(totals.totalCents)}</span>
         </div>
         <div className="flex justify-between text-xs text-muted-foreground">
-          <span>VAT (25%)</span>
+          <span>VAT ({VAT_RATE_PERCENT}%)</span>
           <span className="tabular-nums">{formatEur(totals.vatCents)}</span>
         </div>
         <Separator />

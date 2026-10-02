@@ -10,6 +10,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { useShallow } from "zustand/react/shallow";
 import type { MenuItemDTO } from "./types";
+import { VAT_RATE_PERCENT } from "@/lib/restaurant-config";
 
 interface CartState {
   lines: Array<{ item: MenuItemDTO; quantity: number }>;
@@ -77,7 +78,7 @@ export function selectCartTotals(state: CartState) {
     (s, l) => s + l.item.priceSats * l.quantity,
     0
   );
-  const vatCents = Math.round((totalCents * 25) / 100);
+  const vatCents = Math.round((totalCents * VAT_RATE_PERCENT) / 100);
   const grossCents = totalCents + vatCents;
   const grossSats = Math.round((grossCents / 6_000_000) * 100_000_000);
   const itemCount = state.lines.reduce((s, l) => s + l.quantity, 0);

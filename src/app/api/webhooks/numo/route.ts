@@ -142,6 +142,21 @@ export async function POST(req: NextRequest) {
   }
 
   // ─── 4. Persist the order + line items ─────────────────────────────────
+  // Numo retries the webhook (0/1s/2.5s backoff) with the same eventId and
+  // paymentId — dedupe on paymentId so a retry never duplicates a ticket.
+  const existing = await db.order.findFirst({
+    where: { paymentId: payload.payment.paymentId },
+    include: { items: true },
+  });
+  if (existing) {
+    return NextResponse.json({
+      ok: true,
+      orderId: existing.id,
+      eventId: payload.eventId,
+      deduped: true,
+    });
+  }
+
   const order = await db.order.create({
     data: {
       status: "NEW",
@@ -152,13 +167,16 @@ export async function POST(req: NextRequest) {
       currency: checkout.currency,
       items: {
         create: checkout.items.map((it: NumoCheckoutLineItem) => ({
-          menuItemId: it.itemId,
+          // Real Numo payloads put a per-item UUID in itemId; the merchant
+          // catalog SKU (Numo CSV "SKU" column) is the id that matches the
+          // seeded menu — prefer it, fall back to itemId.
+          menuItemId: it.sku ?? it.itemId,
           name: it.name,
           quantity: it.quantity,
-          unitSats: it.priceSats,
-          unitCents: it.netPriceCents,
-          totalSats: it.netTotalSats,
-          totalCents: it.netTotalCents,
+          unitSats: it.priceSats ?? 0,
+          unitCents: it.netPriceCents ?? 0,
+          totalSats: it.netTotalSats ?? 0,
+          totalCents: it.netTotalCents ?? 0,
         })),
       },
     },

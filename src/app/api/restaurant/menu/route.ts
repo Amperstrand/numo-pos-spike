@@ -8,6 +8,7 @@
  */
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { RESTAURANT, VAT_RATE_PERCENT } from "@/lib/restaurant-config";
 
 export const dynamic = "force-dynamic";
 
@@ -28,10 +29,10 @@ export async function GET() {
 
   return NextResponse.json({
     restaurant: {
-      name: "Trattoria Numo",
+      name: RESTAURANT.name,
       currency: "EUR",
-      vatRate: 25,
-      bitcoinPriceEur: 60_000,
+      vatRate: VAT_RATE_PERCENT,
+      bitcoinPriceEur: 76_000,
     },
     categories: Object.keys(byCategory),
     menu: byCategory,
