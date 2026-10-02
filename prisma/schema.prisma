@@ -1,0 +1,64 @@
+// Prisma schema for the Numo POS hackathon spike.
+// The "legacy restaurant API" is backed by the MenuItem table — simulating
+// an existing restaurant back-office system that exposes products & prices.
+// Orders are persisted so the kitchen can acknowledge and progress them.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// A menu item exposed by the legacy restaurant API.
+/// `priceCents` is the fiat price (EUR cents). `priceSats` is the
+/// sats-equivalent (static for the demo — would normally come from
+/// a live BTC price feed).
+model MenuItem {
+  id          String   @id // stable SKU like "pizza-margherita"
+  name        String
+  description String
+  category    String
+  priceCents  Int // fiat (EUR cents)
+  priceSats   Int // sats equivalent
+  emoji       String
+  available   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+/// A kitchen ticket created after a successful Numo payment.
+model Order {
+  id          String   @id @default(cuid())
+  status      String   @default("NEW") // NEW | PREPARING | READY | PICKED_UP
+  totalSats   Int
+  totalCents  Int
+  paymentId   String? // from Numo webhook payload.paymentId
+  basketId    String? // Numo's checkoutBasketId
+  currency    String   @default("EUR")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items OrderItem[]
+}
+
+/// Line items belonging to an order.
+/// Note: Prisma SQLite cannot store lists of primitives, so we model
+/// the line items as their own table.
+model OrderItem {
+  id          String   @id @default(cuid())
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItemId  String // snapshot of the SKU at time of order (no FK on purpose)
+  name        String // denormalised snapshot
+  quantity    Int
+  unitSats    Int
+  unitCents   Int
+  totalSats   Int
+  totalCents  Int
+  createdAt   DateTime @default(now())
+
+  @@index([orderId])
+}
