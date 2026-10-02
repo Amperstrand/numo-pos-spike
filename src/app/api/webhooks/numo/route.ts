@@ -29,6 +29,7 @@ import {
   type NumoCheckoutLineItem,
   buildNumoPaymentReceivedWebhook,
 } from "@/lib/numo-webhook";
+import { toKitchenItems } from "@/lib/order-mapping";
 
 export const dynamic = "force-dynamic";
 
@@ -166,18 +167,7 @@ export async function POST(req: NextRequest) {
       basketId: checkout.checkoutBasketId,
       currency: checkout.currency,
       items: {
-        create: checkout.items.map((it: NumoCheckoutLineItem) => ({
-          // Real Numo payloads put a per-item UUID in itemId; the merchant
-          // catalog SKU (Numo CSV "SKU" column) is the id that matches the
-          // seeded menu — prefer it, fall back to itemId.
-          menuItemId: it.sku ?? it.itemId,
-          name: it.name,
-          quantity: it.quantity,
-          unitSats: it.priceSats ?? 0,
-          unitCents: it.netPriceCents ?? 0,
-          totalSats: it.netTotalSats ?? 0,
-          totalCents: it.netTotalCents ?? 0,
-        })),
+        create: toKitchenItems(checkout.items),
       },
     },
     include: { items: true },

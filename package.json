@@ -14,7 +14,8 @@
     "db:seed": "bun run scripts/seed-menu.ts",
     "db:clear-orders": "bun run scripts/clear-orders.ts",
     "kitchen-service": "cd mini-services/kitchen-service && bun run dev",
-    "db:seed-burgermeister": "bun run scripts/seed-burgermeister.ts"
+    "db:seed-burgermeister": "bun run scripts/seed-burgermeister.ts",
+    "test": "bun test"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
