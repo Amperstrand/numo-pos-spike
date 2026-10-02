@@ -87,10 +87,16 @@ export function KitchenDisplay({ refreshSignal }: Props) {
 
   // ─── Real-time via Socket.io mini-service on port 3003 ───────────────
   useEffect(() => {
-    // Per Caddy gateway contract: connect to "/" with XTransformPort query.
-    // Socket.io path stays default ("/socket.io/") so it doesn't conflict
-    // with the kitchen-service's own HTTP routes.
-    const sock = io("/", {
+    // Two deployment shapes: the Caddy gateway (single origin, routes
+    // ?XTransformPort=3003 to the kitchen-service) and direct local runs
+    // (browser reaches the mini-service on :3003 itself). Gateway wins only
+    // when NEXT_PUBLIC_KITCHEN_PROXY=1; otherwise connect straight to the
+    // kitchen service on the current hostname.
+    const kitchenSocketUrl =
+      process.env.NEXT_PUBLIC_KITCHEN_PROXY === "1"
+        ? "/"
+        : `${window.location.protocol}//${window.location.hostname}:3003`;
+    const sock = io(kitchenSocketUrl, {
       path: "/socket.io/",
       query: { XTransformPort: "3003" },
       transports: ["websocket", "polling"],
