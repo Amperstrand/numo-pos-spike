@@ -80,15 +80,15 @@ export interface NumoCheckoutLineItem {
   priceType: "FIAT" | "SATS" | string;
   netPriceCents: number;
   priceSats: number;
-  priceCurrency: string;
+  priceCurrency?: string;
   vatEnabled: boolean;
   vatRate: number;
-  displayName: string;
+  displayName?: string;
   netTotalCents: number;
   netTotalSats: number;
-  vatPerUnitCents: number;
-  totalVatCents: number;
-  grossPricePerUnitCents: number;
+  vatPerUnitCents?: number;
+  totalVatCents?: number;
+  grossPricePerUnitCents?: number;
   grossTotalCents: number;
 }
 
@@ -195,10 +195,11 @@ export function buildNumoPaymentReceivedWebhook(args: {
     (s, i) => s + i.netTotalCents,
     0
   );
-  const fiatVatTotalCents = checkoutItems.reduce(
-    (s, i) => s + i.totalVatCents,
-    0
-  );
+  const fiatVatTotalCents = checkoutItems.reduce((s, i) => {
+    if (i.totalVatCents !== undefined) return s + i.totalVatCents;
+    const vatPerUnit = Math.round(i.netPriceCents * (i.vatRate / 100));
+    return s + vatPerUnit * i.quantity;
+  }, 0);
   const fiatGrossTotalCents = fiatNetTotalCents + fiatVatTotalCents;
   const satsDirectTotal = checkoutItems.reduce(
     (s, i) => s + i.netTotalSats,

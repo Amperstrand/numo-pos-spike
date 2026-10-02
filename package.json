@@ -15,7 +15,8 @@
     "db:clear-orders": "bun run scripts/clear-orders.ts",
     "kitchen-service": "cd mini-services/kitchen-service && bun run dev",
     "db:seed-burgermeister": "bun run scripts/seed-burgermeister.ts",
-    "test": "bun test"
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -90,12 +91,13 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/bun": "^1.4.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "bun-types": "^1.3.4",
     "eslint": "^9",
     "eslint-config-next": "^16.1.1",
-    "jamezz": "github:Amperstrand/jamezz#77920fa",
+    "jamezz": "github:Amperstrand/jamezz#b0ea070",
     "tailwindcss": "^4",
     "tw-animate-css": "^1.3.5",
     "typescript": "^5"
