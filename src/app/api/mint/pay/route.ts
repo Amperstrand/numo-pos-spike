@@ -12,8 +12,12 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { payQuote, encodeProofsAsCashuToken } from "@/lib/mock-mint";
+import * as testnut from "@/lib/testnut-mint";
 
 export const dynamic = "force-dynamic";
+
+/** TESTNUT_MINT=1 → poll the real testnut quote to PAID, then mint proofs. */
+const useTestnut = process.env.TESTNUT_MINT === "1";
 
 export async function POST(req: NextRequest) {
   let body: { quote?: string };
@@ -28,6 +32,16 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    if (useTestnut) {
+      const paid = await testnut.payQuote(body.quote);
+      return NextResponse.json({
+        quote: paid.quote,
+        state: paid.state,
+        paidAt: paid.paidAt,
+        proofs: paid.proofs,
+        token: testnut.encodeProofsAsCashuToken(paid.proofs),
+      });
+    }
     const { quote, proofs } = payQuote(body.quote);
     const token = encodeProofsAsCashuToken(proofs);
     return NextResponse.json({

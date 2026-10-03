@@ -8,8 +8,12 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { verifyProofs, type MockProof } from "@/lib/mock-mint";
+import * as testnut from "@/lib/testnut-mint";
 
 export const dynamic = "force-dynamic";
+
+/** TESTNUT_MINT=1 → check spendability at the real mint (/v1/check). */
+const useTestnut = process.env.TESTNUT_MINT === "1";
 
 export async function POST(req: NextRequest) {
   let body: { proofs?: MockProof[] };
@@ -23,7 +27,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "missing proofs" }, { status: 400 });
   }
 
-  const result = verifyProofs(body.proofs);
+  const result = useTestnut
+    ? await testnut.verifyProofs(body.proofs).catch((err) => {
+        throw new Error(err instanceof Error ? err.message : "mint check failed");
+      })
+    : verifyProofs(body.proofs);
   if (!result.ok) {
     return NextResponse.json(
       { ok: false, error: "no valid proofs" },

@@ -42,6 +42,7 @@ interface QuoteResponse {
   state: string;
   expiry: number;
   mintUrl: string;
+  mintMode?: "mock" | "testnut";
 }
 
 interface Props {
@@ -335,7 +336,9 @@ export function PaymentModal({ open, onClose, onPaid }: Props) {
               type="button"
             >
               <Zap className="h-4 w-4 mr-1.5 fill-yellow-400 text-yellow-500" />
-              Simulate customer payment
+              {quote?.mintMode === "testnut"
+                ? "Settle at testnut mint (auto-paid)"
+                : "Simulate customer payment"}
             </Button>
           </div>
         )}

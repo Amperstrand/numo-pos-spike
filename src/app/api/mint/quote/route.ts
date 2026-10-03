@@ -8,8 +8,12 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { createMintQuote } from "@/lib/mock-mint";
+import * as testnut from "@/lib/testnut-mint";
 
 export const dynamic = "force-dynamic";
+
+/** TESTNUT_MINT=1 → real testnut.cashu.space quotes; default → mock mint. */
+const useTestnut = process.env.TESTNUT_MINT === "1";
 
 export async function POST(req: NextRequest) {
   let body: { amountSats?: number };
@@ -27,6 +31,18 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  if (useTestnut) {
+    try {
+      const q = await testnut.createMintQuote(amountSats);
+      return NextResponse.json({ ...q, mintUrl: testnut.MINT_URL, mintMode: "testnut" });
+    } catch (err) {
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : "testnut quote failed" },
+        { status: 502 },
+      );
+    }
+  }
+
   const quote = createMintQuote(amountSats);
 
   return NextResponse.json({
@@ -38,5 +54,6 @@ export async function POST(req: NextRequest) {
     expiry: quote.expiry,
     // Mint URL we present to the POS for display purposes.
     mintUrl: "https://mint.numo-spike.local/cashu-bitcoin",
+    mintMode: "mock",
   });
 }
