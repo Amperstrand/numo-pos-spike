@@ -117,7 +117,7 @@ io.on("connection", (socket) => {
   });
 });
 
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, "127.0.0.1", () => {
   console.log(
     `[kitchen-service] HTTP + Socket.io (path=${SOCKET_IO_PATH}) listening on http://localhost:${PORT}`
   );
