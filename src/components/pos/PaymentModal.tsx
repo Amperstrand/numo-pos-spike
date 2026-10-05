@@ -45,6 +45,12 @@ interface QuoteResponse {
   mintMode?: "mock" | "testnut";
 }
 
+interface WebhookResponse {
+  ok: boolean;
+  orderId: string;
+  bridge?: { ok: boolean; id?: string; orderNumber?: string; error?: string };
+}
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -63,6 +69,8 @@ export function PaymentModal({ open, onClose, onPaid }: Props) {
   >([]);
   const [copied, setCopied] = useState(false);
   const [orderId, setOrderId] = useState<string | null>(null);
+  const [venueOrderNumber, setVenueOrderNumber] = useState<string | null>(null);
+  const [venueSkipReason, setVenueSkipReason] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Refs to latest cart state — read inside async effects without
@@ -96,6 +104,8 @@ export function PaymentModal({ open, onClose, onPaid }: Props) {
       setProofs([]);
       setCopied(false);
       setOrderId(null);
+      setVenueOrderNumber(null);
+      setVenueSkipReason(null);
       setErrorMsg(null);
       resetFired();
     } else {
@@ -178,18 +188,22 @@ export function PaymentModal({ open, onClose, onPaid }: Props) {
       try {
         const currentLines = linesRef.current;
         const currentTotals = totalsRef.current;
+        const vatRate = useCart.getState().vatRate;
         const webhookPayload = {
           event: "payment.received",
           payloadVersion: 2,
           paymentId: quote.quote, // pretend the quote id IS the payment id
           amountSats: currentTotals.totalSats,
           basketId: `pos_${Date.now()}`,
+          vatRate,
           lineItems: currentLines.map(({ item, quantity }) => ({
             itemId: item.id,
             name: item.name,
             category: item.category,
             quantity,
-            netPriceCents: item.priceCents,
+            // item.priceCents is the GROSS venue price; the webhook contract
+            // wants the net unit price (VAT is grossed back up server-side).
+            netPriceCents: Math.round(item.priceCents / (1 + vatRate / 100)),
             priceSats: item.priceSats,
           })),
         };
@@ -203,8 +217,13 @@ export function PaymentModal({ open, onClose, onPaid }: Props) {
           const errBody = await res.json().catch(() => ({}));
           throw new Error(errBody.error ?? `webhook failed: ${res.status}`);
         }
-        const data = await res.json();
+        const data: WebhookResponse = await res.json();
         setOrderId(data.orderId);
+        if (data.bridge?.ok && data.bridge.orderNumber) {
+          setVenueOrderNumber(data.bridge.orderNumber);
+        } else if (data.bridge && !data.bridge.ok) {
+          setVenueSkipReason(data.bridge.error ?? "unknown reason");
+        }
         setStep("done");
         clearRef.current();
         toast.success("Payment received — order sent to kitchen!");
@@ -381,6 +400,16 @@ export function PaymentModal({ open, onClose, onPaid }: Props) {
                 <Badge variant="secondary" className="font-mono text-xs">
                   Order #{orderId.slice(-6).toUpperCase()}
                 </Badge>
+              )}
+              {venueOrderNumber && (
+                <Badge variant="outline" className="font-mono text-xs">
+                  Venue order {venueOrderNumber}
+                </Badge>
+              )}
+              {venueSkipReason && (
+                <div className="text-[10px] text-muted-foreground">
+                  Venue leg skipped: {venueSkipReason}
+                </div>
               )}
             </div>
             <Button onClick={onClose} className="w-full" size="lg" type="button">

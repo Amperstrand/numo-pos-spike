@@ -156,10 +156,12 @@ export function buildNumoPaymentReceivedWebhook(args: {
   }>;
   currency?: string;
   bitcoinPrice?: number;
+  /** Venue VAT percent (e.g. 19 for Burgermeister). Defaults to the legacy spike rate. */
+  vatRate?: number;
 }): NumoPaymentReceivedWebhookV2 {
   const now = Date.now();
   const currency = args.currency ?? "EUR";
-  const vatRate = SPIKE_VAT_RATE;
+  const vatRate = args.vatRate ?? SPIKE_VAT_RATE;
 
   // Build checkout line items with VAT math (gross-up to match Numo's shape).
   const checkoutItems: NumoCheckoutLineItem[] = args.lineItems.map((it, idx) => {

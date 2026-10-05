@@ -30,6 +30,8 @@ import {
   buildNumoPaymentReceivedWebhook,
 } from "@/lib/numo-webhook";
 import { toKitchenItems } from "@/lib/order-mapping";
+import { VAT_RATE_PERCENT } from "@/lib/restaurant-config";
+import { forwardPaidOrderToBridge } from "@/lib/bridge-forward";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +54,8 @@ interface SimplifiedPosWebhook {
     priceSats: number;
   }>;
   currency?: string;
+  /** Venue VAT percent the POS hydrated from /api/restaurant/menu. */
+  vatRate?: number;
 }
 
 function isFullV2Payload(
@@ -105,12 +109,14 @@ export async function POST(req: NextRequest) {
     // POS spike frontend — fabricate the full Numo v2 payload so the
     // downstream handler can stay contract-pure. This is exactly the
     // shape Numo would have sent in production.
+    const venue = await db.venueMeta.findUnique({ where: { id: 1 } });
     payload = buildNumoPaymentReceivedWebhook({
       paymentId: raw.paymentId,
       amountSats: raw.amountSats,
       basketId: raw.basketId,
       lineItems: raw.lineItems,
       currency: raw.currency,
+      vatRate: raw.vatRate ?? venue?.vatRate ?? VAT_RATE_PERCENT,
     });
   } else {
     return NextResponse.json(
@@ -192,9 +198,20 @@ export async function POST(req: NextRequest) {
     })),
   });
 
+  // ─── 6. Bridge leg (demo-gated, best-effort) ───────────────────────────
+  // Stage the same basket as a bridge provider order so the web POS gets a
+  // po-mu… venue order number in the bridge store, like the Android app.
+  const bridge = await forwardPaidOrderToBridge(
+    checkout.items.map((i) => ({ name: i.name, quantity: i.quantity })),
+  );
+  if (!bridge.ok) {
+    console.log(`[webhook] bridge forward skipped: ${bridge.error}`);
+  }
+
   return NextResponse.json({
     ok: true,
     orderId: order.id,
     eventId: payload.eventId,
+    bridge,
   });
 }
