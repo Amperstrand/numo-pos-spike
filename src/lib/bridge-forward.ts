@@ -31,8 +31,15 @@ const DEFAULT_BRIDGE_URL = "http://127.0.0.1:8787";
 const SETTLE_POLL_INTERVAL_MS = 1_500;
 const SETTLE_BUDGET_MS = 12_000;
 
+// provider-protocol v1: npv1_ key from pairing (env until the spike has UI)
+const BRIDGE_KEY = process.env.BRIDGE_KEY ?? "";
+
 async function getJson(url: string, init?: RequestInit): Promise<unknown> {
-  const res = await fetch(url, init);
+  const headers: Record<string, string> = {
+    ...(init?.headers as Record<string, string> | undefined),
+    ...(BRIDGE_KEY ? { Authorization: `Bearer ${BRIDGE_KEY}` } : {}),
+  };
+  const res = await fetch(url, { ...init, headers });
   if (!res.ok) throw new Error(`HTTP ${res.status} from ${url}`);
   return res.json();
 }
@@ -74,16 +81,17 @@ export async function forwardPaidOrderToBridge(
       };
     }
 
-    const menu = (await getJson(`${base}/provider/menu`)) as {
+    const menu = (await getJson(`${base}/v1/provider/menu`)) as {
       items?: BridgeMenuItem[];
     };
     const mapped = mapSpikeLinesToBridgeItems(lines, menu.items ?? []);
     if ("error" in mapped) return { ok: false, error: mapped.error };
 
-    const created = (await getJson(`${base}/provider/orders`, {
+    // requestId: a network-retried forward dedupes to the original order
+    const created = (await getJson(`${base}/v1/provider/orders`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items: mapped.items }),
+      body: JSON.stringify({ items: mapped.items, requestId: crypto.randomUUID() }),
     })) as { id?: string; mode?: string };
     if (!created.id) return { ok: false, error: "bridge returned no order id" };
 
@@ -92,7 +100,7 @@ export async function forwardPaidOrderToBridge(
     let status = "pending";
     while (Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, SETTLE_POLL_INTERVAL_MS));
-      const order = (await getJson(`${base}/provider/orders/${created.id}`)) as {
+      const order = (await getJson(`${base}/v1/provider/orders/${created.id}`)) as {
         status?: string;
       };
       status = order.status ?? "pending";
@@ -107,7 +115,7 @@ export async function forwardPaidOrderToBridge(
       };
     }
 
-    const submitted = (await getJson(`${base}/provider/orders/${created.id}/submit`, {
+    const submitted = (await getJson(`${base}/v1/provider/orders/${created.id}/submit`, {
       method: "POST",
     })) as { status?: string; orderNumber?: string };
     if (!submitted.orderNumber) {
