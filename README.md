@@ -1,5 +1,11 @@
 # Numo POS · Spike
 
+> **Continuation (2026-10-30):** the spike served its hackathon purpose and
+> is complete. The bridge POC lives on in the private `numo-bridge` repo
+> (Numo Provider Protocol v1 + the terminal safety envelope); the 402-gated
+> order API side is the `mcp-oda` agent-gateway. This repo stays as the
+> spike record.
+
 A hackathon spike that turns [**Numo**](https://github.com/cashubtc/numo) — the open-source Cashu payment terminal — into a restaurant checkout flow. A web shop loads a menu, builds a cart, triggers a Cashu payment via a mock mint, emits the **real Numo v2 `payment.received` webhook**, and submits the order to a real-time kitchen endpoint so the kitchen can start cooking.
 
 ![Split view — POS + Kitchen](docs/screenshots/01-split-view.png)
