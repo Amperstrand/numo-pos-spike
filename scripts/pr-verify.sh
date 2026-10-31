@@ -24,6 +24,7 @@
 # auth for view/comment only. PR mode pins the head SHA at start-of-run.
 set -u
 
+INVOKED_AS="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LEGS=(hygiene deps typecheck lint unit-tests)
 
@@ -35,9 +36,12 @@ usage() {
 die() { echo "pr-verify: $*" >&2; exit 2; }
 
 TARGET=""; NO_POST=0; REMOVE_LOGS=0; ONLY=""
+EXTRA_TRUSTED=()
 while [ $# -gt 0 ]; do
     case "$1" in
         --no-post) NO_POST=1 ;;
+        --trusted-author) [ $# -ge 2 ] || die "--trusted-author needs a login"; EXTRA_TRUSTED+=("$2"); shift ;;
+        --trusted-author=*) EXTRA_TRUSTED+=("${1#--trusted-author=}") ;;
         --remove-logs) REMOVE_LOGS=1 ;;
         --only) [ $# -ge 2 ] || die "--only needs a comma-separated leg list"; ONLY="$2"; shift ;;
         --only=*) ONLY="${1#--only=}" ;;
@@ -69,11 +73,32 @@ PR_NUMBER=""; PR_TITLE=""; PR_STATE=""; HEAD_REF=""; BASE_SHA=""
 if [[ "$TARGET" =~ ^[0-9]+$ ]]; then
     command -v gh >/dev/null 2>&1 || die "PR mode needs gh (ref: $SLUG)"
     PR_NUMBER="$TARGET"
-    meta="$(gh pr view "$PR_NUMBER" -R "$SLUG" --json title,state,headRefName,headRefOid --jq='[.title,.state,.headRefName,.headRefOid]|@tsv' 2>/dev/null)" \
+    meta="$(gh pr view "$PR_NUMBER" -R "$SLUG" --json title,state,author,headRefName,headRefOid --jq='[.title,.state,.author.login,.headRefName,.headRefOid]|@tsv' 2>/dev/null)" \
         || die "gh pr view $PR_NUMBER failed"
-    IFS=$'\t' read -r PR_TITLE PR_STATE HEAD_REF HEAD_OID <<<"$meta"
+    IFS=$'\t' read -r PR_TITLE PR_STATE PR_AUTHOR HEAD_REF HEAD_OID <<<"$meta"
     [ "$PR_STATE" = "OPEN" ] || die "PR #$PR_NUMBER is $PR_STATE — verify open PRs"
-    git -C "$ROOT" fetch --quiet origin main 2>/dev/null || true
+
+    # Trust gate: legs execute PR-controlled code (bun install lifecycles,
+    # bun run scripts) as the invoking user on a public repo — verification
+    # is restricted to trusted authors; extend with --trusted-author or
+    # PR_VERIFY_TRUSTED_AUTHORS, or run untrusted PRs isolated.
+    TRUSTED="Amperstrand${PR_VERIFY_TRUSTED_AUTHORS:+,$PR_VERIFY_TRUSTED_AUTHORS}"
+    for a in "${EXTRA_TRUSTED[@]}"; do TRUSTED="$TRUSTED,$a"; done
+    ok=0
+    IFS=',' read -r -a _t <<<"$TRUSTED"
+    for t in "${_t[@]}"; do [ "$t" = "$PR_AUTHOR" ] && ok=1; done
+    [ "$ok" = 1 ] || die "PR #$PR_NUMBER author '$PR_AUTHOR' is not trusted — run legs isolated or pass --trusted-author '$PR_AUTHOR' after review"
+
+    # Fork-safe head fetch (#2): refs/pull/N/head exists on the base repo
+    # even for fork branches; the fetched OID must equal the pinned head.
+    git -C "$ROOT" fetch --quiet origin "refs/pull/$PR_NUMBER/head" 2>/dev/null \
+        || die "cannot fetch refs/pull/$PR_NUMBER/head from $SLUG"
+    FETCHED_OID="$(git -C "$ROOT" rev-parse --verify --quiet FETCH_HEAD^{commit})" \
+        || die "refs/pull/$PR_NUMBER/head did not resolve to a commit"
+    [ "$FETCHED_OID" = "$HEAD_OID" ] \
+        || die "head moved during run (pinned ${HEAD_OID:0:10}, fetched ${FETCHED_OID:0:10}) — rerun"
+
+    git -C "$ROOT" fetch --quiet origin +main:refs/remotes/origin/main 2>/dev/null || true
     BASE_SHA="$(git -C "$ROOT" merge-base "$HEAD_OID" origin/main 2>/dev/null || echo '?')"
     echo "== PR #$PR_NUMBER: $PR_TITLE"
     echo "== head $HEAD_REF @ ${HEAD_OID:0:10} (base ${BASE_SHA:0:10})"
@@ -103,13 +128,16 @@ cleanup() {
 }
 trap cleanup EXIT
 
-git -C "$ROOT" fetch --quiet origin "$HEAD_REF" 2>/dev/null || true
+if [ -z "$PR_NUMBER" ]; then
+    git -C "$ROOT" fetch --quiet origin "$HEAD_REF" 2>/dev/null || true
+fi
 git -C "$ROOT" rev-parse --verify --quiet "${HEAD_OID}^{commit}" >/dev/null \
     || die "head commit $HEAD_OID is not local after fetch — rerun"
 git -C "$ROOT" worktree add --quiet --detach "$WT" "$HEAD_OID" || die "worktree add failed for $HEAD_OID"
 echo "== worktree: $WT"
 
-SCRIPT_ID="$(sha256sum "$WT/scripts/pr-verify.sh" 2>/dev/null | cut -c1-12)"
+# Stamp the EXECUTING verifier, never the PR worktree's copy of it (#2).
+SCRIPT_ID="$(sha256sum "$INVOKED_AS" 2>/dev/null | cut -c1-12)"
 HOST="$(hostname -s 2>/dev/null || echo unknown)"
 
 leg_names=() leg_status=() leg_detail=() leg_secs=()
@@ -134,8 +162,8 @@ run_hygiene() {
 run_deps() {
     echo "== leg: deps"
     local t=$SECONDS log="$LOGDIR/deps.log"
-    if bun install --frozen-lockfile >>"$log" 2>&1 && bun run db:generate >>"$log" 2>&1; then
-        record deps PASS "bun install --frozen-lockfile + prisma generate" $((SECONDS - t))
+    if bun install --frozen-lockfile --ignore-scripts >>"$log" 2>&1 && bun run db:generate >>"$log" 2>&1; then
+        record deps PASS "bun install --frozen-lockfile --ignore-scripts + prisma generate" $((SECONDS - t))
     else
         record deps FAIL "install/generate failed — see deps.log" $((SECONDS - t))
     fi
